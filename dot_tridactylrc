@@ -1,0 +1,2 @@
+" Open right click menu on links
+bind ;C composite hint_focus; !s xdotool key Menu

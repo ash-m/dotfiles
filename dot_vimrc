@@ -1,0 +1,116 @@
+"""
+""" Basic Settings
+"""
+"set t_TI= t_TE=
+
+filetype plugin indent on
+set nocompatible
+set backspace=indent,eol,start
+set noerrorbells
+set tabstop=4 softtabstop=4
+set shiftwidth=4
+set expandtab
+set smartindent
+set nu
+set nowrap
+set smartcase
+set noswapfile
+set nobackup
+set undodir=~/.vim/undodir
+set undofile
+set incsearch
+set clipboard=unnamedplus
+
+let g:python3_host_prog="/path/to/python/executable/"
+
+
+
+"""
+""" Customize Display
+"""
+syntax on
+
+set colorcolumn=80
+set background=dark
+set termguicolors
+
+
+
+"""
+""" Custom Commands
+"""
+" For php files generate a tag file in a PHP project. You must add the ctags
+" script to the .git/hooks directory. See $HOME/ctags
+" au BufWritePost *.php silent! !eval '[ -f ".git/hooks/ctags" ] && .git/hooks/ctags' &
+
+" This lets you choose a special action that's mapped to a key when you press
+" (in this case) the space bar.
+" let mapleader = " "
+
+" When on, those hooks call `tmux rename-window <current file>`
+" How will this handle using split panes?
+"autocmd BufReadPost,FileReadPost,BufNewFile * call system("tmux rename-window [vi]" . expand("%:t"))
+"autocmd VimLeave * call system("tmux set -t $(tmux display -p '#I') automatic-rename on")
+
+" Highlight `.conf` files with nginx syntax
+au BufNewFile,BufRead *.conf set filetype=nginx
+
+
+
+"""
+""" Customize native utilities
+"""
+" let g:netrw_browse_split = 3
+let g:netrw_banner = 0
+let g:netrw_winsize = 20
+let g:netrw_liststyle = 3
+
+
+
+"""
+""" Customize Plugins
+"""
+call plug#begin('~/.vim/plugged')
+
+Plug 'morhetz/gruvbox'
+Plug '2072/vim-syntax-for-PHP'
+Plug 'tpope/vim-fugitive'
+Plug 'editorconfig/editorconfig-vim'
+Plug 'itchyny/lightline.vim'
+"Plug 'dense-analysis/ale'
+Plug 'chr4/nginx.vim'
+Plug 'tpope/vim-unimpaired'
+Plug 'tpope/vim-abolish'
+Plug 'vim-autoformat/vim-autoformat'
+Plug 'rickhowe/spotdiff.vim'
+
+call plug#end()
+
+
+
+" [ Gruvbox ]
+colorscheme gruvbox
+let g:gruvbox_contrast_dark = 'soft'
+let g:gruvbox_transparent_bg = 1
+hi! Normal ctermbg=NONE guibg=NONE
+hi! NonText ctermbg=NONE guibg=NONE
+
+
+
+" [ Lightline ]
+set laststatus=2
+set noshowmode
+set timeoutlen=1000 ttimeoutlen=0
+
+
+
+" [ ALE ]
+" let g:ale_command_wrapper = 'docker-compose exec linter %*'
+" let g:ale_linters = { 'php': ['psalm'] }
+
+" call ale#linter#Define('php', {
+" \   'name': 'psalm lsp',
+" \   'lsp': 'socket',
+" \   'address': 'localhost:1234',
+" \   'project_root': expand('%:p'),
+" \})

@@ -1,0 +1,295 @@
+# list all files with Windows-like grouping, color and timestamps
+alias ll='LC_COLLATE=C ls -alhF --group-directories-first --color=auto --time-style=+"%Y-%m-%d %H:%M:%S"'
+
+# shortcut for copying output to clipboard
+alias xclp='tr -d "\n" | xclip -selection c'
+
+# print date in YYYYMMDD format
+alias fdate='date +"%Y%m%d"'
+
+# print timestamp in YYYYMMDD_HHMMSS format
+alias fts='date +"%Y%m%d_%H%M%S"'
+
+##
+## Directory Functions
+##
+
+# mv .bak extension to another dir
+# $1 - the directory to append 'bak' to
+# $2 - the directory to remove 'bak' from
+swap(){
+    local prod="$1" backup="$2" swap="${2}.swap"
+    mv "$backup" "$swap"
+    mv "$prod" "$backup"
+    mv "$swap" "$prod"
+}
+
+
+# deletes and remakes a directory (DANGEROUS)
+rmk(){
+  local ans dir cur=$(pwd)
+  dir="${1:-$cur}"
+
+  read -r -p "Are you sure you want to remove '$dir'? [y/n]: " ans
+  if [[ "$ans" != "y" ]]; then echo 'aborted'; return 1; fi
+
+  if [[ "$dir" == "$cur" ]]; then cd ..; fi
+  sudo rm -rf -- "$dir"
+  mkdir -- "$dir"
+  cd "$cur"
+}
+
+# make a directory and `cd` into it.
+mkcd(){
+  mkdir -p -- "$1"
+  cd -P -- "$1"
+}
+
+# delete the current dir and `cd` up
+rwd(){
+  local dir=$(pwd)
+  
+  if [[ "$dir" != '/home'* ]] && [[ "$dir" != '/tmp'* ]]; then
+    echo 'Aborting. Use non-aliased commands.'
+    return 1
+  fi
+
+  cd ..
+  sudo rm -rf -- "$dir"
+}
+
+# move up N directories at a time.
+cdup(){
+  cd -- $(printf '%*s' "$1" | sed 's# #../#g')
+}
+
+# move to a path part using a directory name
+# arg1: the string to match in the PWD string
+cdto(){
+  printf -v patt '^.*%s[^\/]*' "$1"
+  cd "$(pwd | grep -Eo "$patt")"
+}
+
+# find the best match by recursively replacing path segements with the argument
+cdf(){
+  local dir tail=''
+  dir=$(dirname $(pwd))
+
+  until [ -d "$dir/$1" ] || [ -z "$dir" ]; do
+    tail="${dir##*/}/$tail"
+    dir="${dir%/*}"
+  done
+  dir="$dir/$1"
+
+  until [ -d "$dir/${tail%%/*}" ] || [ -z "$tail" ]; do tail="${tail#*/}"; done
+  until [ -d "$dir/${tail}" ]     || [ -z "$tail" ]; do tail="${tail%/*}"; done
+
+  cd "$dir/$tail" || return 1
+}
+
+# adds tracking to a `cd` command if it does not exist use `cds` function for 
+# an interactive history list
+cd(){
+  if ! dirs -p -l | tail -n +2 | grep -Fx "$(pwd)" > /dev/null; then
+    pushd -n $(pwd) > /dev/null
+  fi
+  command cd "$@"
+}
+
+# interactive history directory switcher
+cds(){
+  local dirs dir color=0
+  mapfile -t dirs < <(dirs -p -l | tail -n +2 | sort | grep "$1")
+  for i in "${!dirs[@]}"; do 
+    if ((i % 2)); then
+      color=100
+    else
+      color=0
+    fi
+    printf '\e[%dm%2d  %s\e[0m\n' "$color" "$i" "${dirs[i]}"
+  done
+  read -r -p '#? ' i
+  dir="${dirs[$i]}"
+  if [ -z "$dir" ]; then
+    return $?
+  fi
+  cd "$dir"
+}
+
+
+# list directories containing over N total files
+# This is useful when you want to search through directories not containing
+# more than a certain number of children (dirs, files, sockets, etc.)
+# arg1: N total files
+# arg2: the dir to search (defaults to .)
+# arg3: concat delim for output list (defaults to '|' to be regex friendly)
+subdirOccupancyOver(){ 
+  local -a over lim=$(( $1 + 1 )) size
+  shopt -s dotglob
+  for dir in ${2:-.}/*/; do 
+    size=$(find "$dir" | head -n "$lim" | wc -l)
+    if ((size > $1)); then 
+      over+=("${dir%/}")
+    fi
+  done
+  
+  IFS="${3:-|}" 
+  echo "${over[*]}"
+}
+
+
+# list directories with their latest commit message (subject)
+gitls(){
+  while read -r f; do 
+    printf '%-30s %s\n' "$f" "$(git log -1 --pretty=format:"%s" -- "$f")"
+  done < <(LC_COLLATE=C ls -1F --group-directories-first $@)
+}
+
+
+##
+## Text Functions
+##
+
+# strikethrough text
+strike(){
+  while IFS= read -rn1 -d$'\n' c; do printf '%s\u0336' "$c"; done <<<"$@"
+}
+
+##
+## SSH Functions
+##
+
+# copy pw to clipboard and run ssh; requires first argument (host) to be stored
+# in `pass` and `~/.ssh/config`
+#conn(){
+#  pass -c "$1" && ssh "$1"
+#}
+
+# print hostname associated with ssh Host
+# lsconn(){
+#   ssh -G "$1" | awk '/^hostname/{print $2}'
+# }
+
+##
+## Misc. Functions
+##
+
+# filter irssi links and interactively select one
+urllog(){
+  mapfile -t choices < <(ag --nonumber "$1" ~/.urllog)
+  if [ ${#choices[@]} -eq 0 ]; then
+    echo "Nothing matched your query of '$1'"
+    return 1
+  fi
+
+  for i in "${!choices[@]}"; do
+    echo "$i  ${choices[$i]}"
+  done
+
+  read -r -p '#? ' choice
+
+  if [ -n "${choices[$choice]}" ]; then
+    xdg-open $(echo "${choices[$choice]}" | awk '{print $NF}')
+  else
+    echo "I did not understand '$choice'"
+  fi
+}
+
+# copy absolute filepath to clipboard
+cpln(){
+    readlink -f "$1" | xclp
+}
+
+# a docker wrapper to enable aliases
+# Notes:
+#   `[command]s` maps to an explicit `ls` command (like `builds` => `buildx ls`).
+#   The `case` is for completely custom commands, so it's unlikely you'll see 
+#     "$arg" in the command.
+#   The first argument is called "$arg" as not to confuse it for being exactly
+#     the docker subcommand in contexts where it's not (namely, as the default
+#     to the `case` statement).
+docker(){
+    declare -A lsc=(["apps"]="app" ["builds"]="buildx" ["configs"]="config" ["containers"]="container" ["contexts"]="context" ["networks"]="network" ["nodes"]="node" ["plugins"]="plugin" ["secrets"]="secret" ["services"]="service" ["stacks"]="stack" ["volumes"]="volume")
+    local arg="$1" ls="${lsc[$1]}"; shift
+
+    if [[ -n "$ls" ]]; then
+        command docker "$ls" ls "$@"
+    else
+        case $arg in
+            'on')  command docker --context "$1" "${@:2}" ;;
+            'use') command docker --context "default" context use "${@:-default}" ;;
+            *)     command docker "$arg" "$@" ;;
+        esac
+    fi
+}
+
+# Designed to display a chunk of a large file between two patterns containing
+# an index (line number). This is useful if you want to display a function
+# containing a certain pattern.
+#
+# Suppose you are getting an error: "Cannot read from stream; invalid sequence"
+# You might wish to know exactly where this message came from, so you `ag` your
+# files and find a match in `stream_utility.php`. To get the function body, you
+# cannot simply run `sed -n '/function/,/^    }/p'` since that would give you
+# all of the functions in that file. Using the `printOverIndex` function will
+# allow you to show only the function body containing a certain line number.
+#
+# [TIP]: If you want meta-information above a certain block which does not have
+# a unique match, consider using this function twice: once to print lines
+# closer to your meta data; grep a unique line; use that line number as the new
+# index.
+
+#   arg1: the line number of code you found in a file (using grep/sed/ag)
+#   arg2: the pattern that delimits where to start printing
+#   arg3: the pattern that delimits where to end printing
+printOverIndex(){
+    if (( "$#" == 0 )) || [[ "$1" == '-h' ]]; then 
+        echo "arg1: the line number of code you found in a file (using grep/sed/ag)"
+        echo "arg2: the pattern that delimits where to start printing"
+        echo "arg3: the pattern that delimits where to end printing"
+    
+        return 1
+    fi
+
+    local idx="$1" rIdx startOff rStartOff startPatt="$2" endPatt="$3" file="$4" flen endIdx
+
+    read -r flen < <(wc -l < "$file")
+    # declare -p flen
+    rIdx=$(($flen + 1 - $idx))
+
+    rStartOff=$(tac "$file" | sed -n "$rIdx,$startPatt{$startPatt{=;q;};}")
+    startOff=$(($flen + 1 - $rStartOff))
+
+    #endIdx=$(sed -n "$startOff,${endPatt}p" "$file" | wc -l)
+    #declare -p startOff endIdx
+
+    #if [[ "$idx" > "$endIdx" ]]; then
+    #    echo "WARN: ending pattern matches before provided index";
+    #fi
+
+    sed -n "$startOff,${endPatt}p" "$file"
+}
+
+# Json Expand: expand json into a greppable list.
+je(){
+    jq -cr '
+        def f: if "\(.)" | test("^\\d|\\W") then "[\(tojson)]" else ".\(.)" end;
+        def t: map(f) | join("") | sub("^\\.?"; ".");
+        paths([..] | length == 1) as $p | "\($p | t)=\(getpath($p) | tojson)"
+    '
+}
+
+# shortcut to create a dir and filename in /tmp
+# just pass the filename
+tmptest() {
+    local dir=$(mktemp -d "/tmp/${1%.*}-XXXXXX_test")
+    cd "$dir"
+    vi "$1"
+}
+
+# Usage: inarray "$value" "${array[@]}"
+inarray() { 
+    local n=$1 h; shift
+    for h; do [[ $n = "$h" ]] && return; done
+    return 1
+} 

@@ -1,0 +1,5 @@
+scrollback 50000
+altscreen on
+defbce on
+set term=screen-256color
+fit
